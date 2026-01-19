@@ -1,0 +1,486 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // --- State & Constants ---
+    const STATUSES = ['Nowe', 'W toku', 'Zrealizowane'];
+    let currentDragItem = null;
+    let currentDragType = null; // 'req' or 'q'
+
+    // --- DOM Elements ---
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    // Modals
+    const modalReq = document.getElementById('modal-req');
+    const modalQ = document.getElementById('modal-q');
+    const closeBtns = document.querySelectorAll('.close-modal');
+
+    // Forms
+    const formReq = document.getElementById('form-req');
+    const formQ = document.getElementById('form-q');
+
+    // Boards
+    const reqBoard = document.getElementById('req-board');
+    const qBoard = document.getElementById('q-board');
+
+    // Settings
+    const settingsAuthorInput = document.getElementById('settings-author');
+    const clearDataBtn = document.getElementById('clear-data-btn');
+
+    // --- Initialization ---
+    init();
+
+    function init() {
+        setupTabs();
+        setupModals();
+        setupForms();
+        setupSettings();
+        renderRequirements();
+        renderQuestions();
+        setupGlobalEvents(); // For drag & drop delegation
+    }
+
+    // --- Tabs ---
+    function setupTabs() {
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+    }
+
+    // --- Modals ---
+    function setupModals() {
+        document.getElementById('add-req-btn').addEventListener('click', () => {
+            modalReq.style.display = 'flex';
+        });
+
+        document.getElementById('add-q-btn').addEventListener('click', () => {
+            modalQ.style.display = 'flex';
+        });
+
+        closeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.target.closest('.modal').style.display = 'none';
+            });
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+    }
+
+    // --- Forms & Data Handling ---
+    function setupForms() {
+        formReq.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const co = document.getElementById('req-what').value;
+            const ilosc = document.getElementById('req-amount').value;
+            const producent = document.getElementById('req-producer').value;
+            const uwagi = document.getElementById('req-notes').value;
+            const settings = Storage.getSettings();
+
+            if (!co || !ilosc) return; // Basic validation
+
+            const newItem = {
+                id: 'local-' + Date.now(),
+                co,
+                ilosc,
+                producent,
+                uwagi,
+                autor: settings.author,
+                status: 'Nowe',
+                createdAt: Date.now(),
+                syncError: false
+            };
+
+            // Local Save
+            Storage.addRequirement(newItem);
+            renderRequirements();
+            modalReq.style.display = 'none';
+            formReq.reset();
+            showToast('Dodano zapotrzebowanie', 'success');
+
+            // API Sync
+            try {
+                const response = await API.addRequirement({
+                    co, ilosc, producent, autor: settings.author, uwagi
+                });
+
+                // Update ID from server if available
+                if (response.id) {
+                    newItem.id = response.id; // Correct update logic requires finding item again or robust ID handling. 
+                    // For simplicity, we assume we might get a real ID. 
+                    // Ideally we update the local item with the server ID to avoid dupes/issues.
+                    // However, finding it by local-ID is tricky if we don't keep that reference.
+                    // Let's reload items, find by local-ID (timestamp) and update.
+                    const items = Storage.getRequirements();
+                    const index = items.findIndex(i => i.createdAt === newItem.createdAt);
+                    if (index !== -1) {
+                        items[index].id = response.id;
+                        Storage.saveRequirements(items);
+                        renderRequirements();
+                    }
+                }
+            } catch (err) {
+                console.error("Sync error", err);
+                markSyncError('req', newItem.id);
+            }
+        });
+
+        formQ.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const opis = document.getElementById('q-desc').value;
+            const termin = document.getElementById('q-date').value;
+            const priorytet = document.getElementById('q-priority').value;
+            const settings = Storage.getSettings();
+
+            if (!opis) return;
+
+            const newItem = {
+                id: 'local-' + Date.now(),
+                opis,
+                termin_odpowiedzi: termin,
+                priorytet,
+                autor: settings.author,
+                status: 'Nowe',
+                createdAt: Date.now(),
+                syncError: false
+            };
+
+            Storage.addQuestion(newItem);
+            renderQuestions();
+            modalQ.style.display = 'none';
+            formQ.reset();
+            showToast('Dodano pytanie', 'success');
+
+            try {
+                const response = await API.addQuestion({
+                    opis, termin_odpowiedzi: termin, priorytet, autor: settings.author
+                });
+                // Similar ID update logic
+                if (response.id) {
+                    const items = Storage.getQuestions();
+                    const index = items.findIndex(i => i.createdAt === newItem.createdAt);
+                    if (index !== -1) {
+                        items[index].id = response.id;
+                        Storage.saveQuestions(items);
+                        renderQuestions();
+                    }
+                }
+            } catch (err) {
+                markSyncError('q', newItem.id);
+            }
+        });
+    }
+
+    function markSyncError(type, id) {
+        if (type === 'req') {
+            const items = Storage.getRequirements();
+            const item = items.find(i => i.id === id);
+            if (item) {
+                item.syncError = true;
+                Storage.saveRequirements(items);
+                renderRequirements();
+            }
+        } else {
+            const items = Storage.getQuestions();
+            const item = items.find(i => i.id === id);
+            if (item) {
+                item.syncError = true;
+                Storage.saveQuestions(items);
+                renderQuestions();
+            }
+        }
+        showToast('Błąd synchronizacji', 'error');
+    }
+
+    // --- Rendering ---
+    function renderRequirements() {
+        const items = Storage.getRequirements();
+        // Clear lists
+        document.getElementById('req-list-nowe').innerHTML = '';
+        document.getElementById('req-list-w-toku').innerHTML = '';
+        document.getElementById('req-list-zrealizowane').innerHTML = '';
+
+        items.forEach(item => {
+            const card = createCard('req', item);
+            const listId = `req-list-${item.status.toLowerCase().replace(' ', '-')}`;
+            const list = document.getElementById(listId);
+            if (list) list.appendChild(card);
+        });
+    }
+
+    function renderQuestions() {
+        const items = Storage.getQuestions();
+        document.getElementById('q-list-nowe').innerHTML = '';
+        document.getElementById('q-list-w-toku').innerHTML = '';
+        document.getElementById('q-list-zrealizowane').innerHTML = '';
+
+        items.forEach(item => {
+            const card = createCard('q', item);
+            const listId = `q-list-${item.status.toLowerCase().replace(' ', '-')}`;
+            const list = document.getElementById(listId);
+            if (list) list.appendChild(card);
+        });
+    }
+
+    function createCard(type, item) {
+        const div = document.createElement('div');
+        div.className = 'card';
+        if (item.syncError) div.classList.add('sync-error');
+        div.draggable = true;
+        div.dataset.id = item.id;
+        div.dataset.type = type;
+
+        // Error Badge
+        if (item.syncError) {
+            const badge = document.createElement('div');
+            badge.className = 'error-badge';
+            badge.innerText = 'Błąd synchro';
+            div.appendChild(badge);
+        }
+
+        const title = document.createElement('div');
+        title.className = 'card-title';
+        title.innerText = type === 'req' ? item.co : shortenText(item.opis);
+        div.appendChild(title);
+
+        const details = document.createElement('div');
+        details.className = 'card-details';
+        if (type === 'req') {
+            details.innerHTML = `
+                <span>Ilość: ${item.ilosc}</span>
+                <span>Autor: ${item.autor}</span>
+                ${item.producent ? `<span>Prod: ${item.producent}</span>` : ''}
+            `;
+        } else {
+            details.innerHTML = `
+                <span>Priorytet: ${item.priorytet}</span>
+                <span>Termin: ${item.termin_odpowiedzi || '-'}</span>
+                <span>Autor: ${item.autor}</span>
+            `;
+        }
+        div.appendChild(details);
+
+        // Actions (Quick Move buttons for mobile friendliness)
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+
+        if (item.syncError) {
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'action-btn';
+            retryBtn.innerText = 'Ponów';
+            retryBtn.onclick = (e) => {
+                e.stopPropagation(); // Prevent drag start
+                retrySync(type, item);
+            };
+            actions.appendChild(retryBtn);
+        }
+
+        // Add 'Next State' buttons depending on current state
+        if (item.status === 'Nowe') {
+            actions.appendChild(createMoveBtn('W toku', type, item.id));
+        } else if (item.status === 'W toku') {
+            actions.appendChild(createMoveBtn('Zrealizowane', type, item.id));
+            actions.appendChild(createMoveBtn('Nowe', type, item.id)); // Backwards
+        } else if (item.status === 'Zrealizowane') {
+            actions.appendChild(createMoveBtn('W toku', type, item.id)); // Backwards
+        }
+
+        div.appendChild(actions);
+
+        // Drag Events
+        div.addEventListener('dragstart', (e) => {
+            currentDragItem = item;
+            currentDragType = type;
+            e.dataTransfer.setData('text/plain', JSON.stringify({ id: item.id, type }));
+            div.style.opacity = '0.5';
+        });
+
+        div.addEventListener('dragend', () => {
+            div.style.opacity = '1';
+            currentDragItem = null;
+            currentDragType = null;
+        });
+
+        return div;
+    }
+
+    function createMoveBtn(targetStatus, type, id) {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.innerText = `-> ${targetStatus}`;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            changeStatus(type, id, targetStatus);
+        };
+        return btn;
+    }
+
+    function shortenText(text) {
+        return text.length > 30 ? text.substring(0, 30) + '...' : text;
+    }
+
+    // --- Actions ---
+    async function changeStatus(type, id, newStatus) {
+        // Optimistic Update
+        let item, items;
+        if (type === 'req') {
+            items = Storage.getRequirements();
+            item = items.find(i => i.id == id); // loose equal for string/number id mix
+        } else {
+            items = Storage.getQuestions();
+            item = items.find(i => i.id == id);
+        }
+
+        if (!item) return;
+        const oldStatus = item.status;
+        item.status = newStatus;
+
+        if (type === 'req') {
+            Storage.saveRequirements(items);
+            renderRequirements();
+        } else {
+            Storage.saveQuestions(items);
+            renderQuestions();
+        }
+
+        showToast(`Status zmieniony na: ${newStatus}`, 'success');
+
+        // Verify with API
+        try {
+            if (type === 'req') {
+                await API.updateRequirementStatus(item.id, newStatus);
+            } else {
+                await API.updateQuestionStatus(item.id, newStatus);
+            }
+        } catch (err) {
+            console.error("Status update error", err);
+            // Revert
+            item.status = oldStatus;
+            if (type === 'req') {
+                Storage.saveRequirements(items);
+                renderRequirements();
+            } else {
+                Storage.saveQuestions(items);
+                renderQuestions();
+            }
+            showToast('Nie udało się zapisać statusu online', 'error');
+        }
+    }
+
+    async function retrySync(type, item) {
+        // Remove error flag first (optimistic)
+        item.syncError = false;
+        if (type === 'req') Storage.updateRequirement(item);
+        else Storage.updateQuestion(item);
+
+        if (type === 'req') renderRequirements();
+        else renderQuestions();
+
+        try {
+            // Note: Retrying ADD vs UPDATE logic is needed.
+            // Simplified: If it was an ADD error, we call add. If STATUS error... complex to track.
+            // For MVP: We assume most errors are ADD errors or we just try ADD again if it looks like a local ID.
+
+            // Logic: If ID starts with 'local-', it's an un-synced ADD.
+            // If ID is real (db ID), it's likely a STATUS update failure (or we don't handle that yet clearly).
+            // The prompt says "if error -> undo change". So status errors revert immediately.
+            // Thus, syncError persists primarily for failed ADDs that we kept locally.
+
+            if (String(item.id).startsWith('local-')) {
+                // Retry Add
+                let res;
+                if (type === 'req') {
+                    res = await API.addRequirement(item); // item has extra fields but API should ignore/handle
+                } else {
+                    res = await API.addQuestion(item);
+                }
+
+                if (res && res.id) {
+                    item.id = res.id;
+                    if (type === 'req') Storage.updateRequirement(item);
+                    else Storage.updateQuestion(item);
+                    showToast('Zsynchronizowano pomyślnie', 'success');
+                }
+            } else {
+                // Used to be a status update error? 
+                // But we revert status updates on error.
+                // So this branch might not be reached unless we change logic.
+                // Leaving for safety.
+                showToast('Brak akcji dla tego błędu', 'error');
+            }
+        } catch (err) {
+            item.syncError = true;
+            if (type === 'req') Storage.updateRequirement(item);
+            else Storage.updateQuestion(item);
+            if (type === 'req') renderRequirements();
+            else renderQuestions();
+            showToast('Ponowna próba nieudana', 'error');
+        }
+    }
+
+    // --- Drag & Drop (Global for Columns) ---
+    function setupGlobalEvents() {
+        const columns = document.querySelectorAll('.kanban-column');
+        columns.forEach(col => {
+            col.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                col.classList.add('drag-over');
+            });
+            col.addEventListener('dragleave', () => {
+                col.classList.remove('drag-over');
+            });
+            col.addEventListener('drop', (e) => {
+                e.preventDefault();
+                col.classList.remove('drag-over');
+                const targetStatus = col.dataset.status;
+
+                if (currentDragItem && currentDragItem.status !== targetStatus) {
+                    changeStatus(currentDragType, currentDragItem.id, targetStatus);
+                }
+            });
+        });
+    }
+
+    // --- Settings ---
+    function setupSettings() {
+        const settings = Storage.getSettings();
+        settingsAuthorInput.value = settings.author;
+
+        settingsAuthorInput.addEventListener('change', () => {
+            const newSettings = { author: settingsAuthorInput.value };
+            Storage.saveSettings(newSettings);
+            showToast('Zapisano ustawienia', 'success');
+        });
+
+        clearDataBtn.addEventListener('click', () => {
+            if (confirm('Czy na pewno wyczyścić wszystkie dane lokalne?')) {
+                Storage.clearAll();
+                location.reload();
+            }
+        });
+    }
+
+    // --- Toast ---
+    function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast show';
+        if (type === 'error') toast.style.backgroundColor = '#FF3B30';
+        if (type === 'success') toast.style.backgroundColor = '#34C759';
+
+        toast.innerText = msg;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+});

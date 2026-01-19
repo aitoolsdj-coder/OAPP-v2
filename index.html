@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#F2F2F7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="OAPP">
+    <title>OAPP – Olefiny</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <h1>OAPP – Olefiny</h1>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="zapotrzebowania">Zapotrzebowania</button>
+        <button class="tab-btn" data-tab="pytania">Pytania</button>
+        <button class="tab-btn" data-tab="ustawienia">Ustawienia</button>
+        <div class="tab-indicator"></div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content">
+        <!-- Zapotrzebowania View -->
+        <section id="zapotrzebowania" class="tab-content active">
+            <div class="view-header">
+                <h2>Zapotrzebowania</h2>
+                <button class="add-btn" id="add-req-btn">+ Dodaj</button>
+            </div>
+            <div class="kanban-board" id="req-board">
+                <div class="kanban-column" data-status="Nowe">
+                    <h3>Nowe</h3>
+                    <div class="kanban-list" id="req-list-nowe"></div>
+                </div>
+                <div class="kanban-column" data-status="W toku">
+                    <h3>W toku</h3>
+                    <div class="kanban-list" id="req-list-w-toku"></div>
+                </div>
+                <div class="kanban-column" data-status="Zrealizowane">
+                    <h3>Zrealizowane</h3>
+                    <div class="kanban-list" id="req-list-zrealizowane"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pytania View -->
+        <section id="pytania" class="tab-content">
+            <div class="view-header">
+                <h2>Pytania</h2>
+                <button class="add-btn" id="add-q-btn">+ Dodaj</button>
+            </div>
+            <div class="kanban-board" id="q-board">
+                <div class="kanban-column" data-status="Nowe">
+                    <h3>Nowe</h3>
+                    <div class="kanban-list" id="q-list-nowe"></div>
+                </div>
+                <div class="kanban-column" data-status="W toku">
+                    <h3>W toku</h3>
+                    <div class="kanban-list" id="q-list-w-toku"></div>
+                </div>
+                <div class="kanban-column" data-status="Zrealizowane">
+                    <h3>Zrealizowane</h3>
+                    <div class="kanban-list" id="q-list-zrealizowane"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ustawienia View -->
+        <section id="ustawienia" class="tab-content">
+            <div class="settings-container">
+                <h2>Ustawienia</h2>
+                <div class="form-group">
+                    <label for="settings-author">Twoje imię (Autor)</label>
+                    <input type="text" id="settings-author" placeholder="Wpisz imię">
+                </div>
+                <button id="clear-data-btn" class="danger-btn">Wyczyść dane lokalne</button>
+                <p class="version-info">Wersja 1.0.0</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <div id="modal-req" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Nowe Zapotrzebowanie</h2>
+            <form id="form-req">
+                <div class="form-group">
+                    <label for="req-what">Co potrzebujesz? *</label>
+                    <input type="text" id="req-what" required>
+                </div>
+                <div class="form-group">
+                    <label for="req-amount">Ilość *</label>
+                    <input type="text" id="req-amount" required>
+                </div>
+                <div class="form-group">
+                    <label for="req-producer">Producent</label>
+                    <input type="text" id="req-producer">
+                </div>
+                <div class="form-group">
+                    <label for="req-notes">Uwagi</label>
+                    <textarea id="req-notes"></textarea>
+                </div>
+                <button type="submit" class="submit-btn">Zapisz</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-q" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Nowe Pytanie</h2>
+            <form id="form-q">
+                <div class="form-group">
+                    <label for="q-desc">Opis pytania *</label>
+                    <textarea id="q-desc" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="q-date">Termin odpowiedzi</label>
+                    <input type="date" id="q-date">
+                </div>
+                <div class="form-group">
+                    <label for="q-priority">Priorytet *</label>
+                    <select id="q-priority">
+                        <option value="Niski">Niski</option>
+                        <option value="Sredni" selected>Średni</option>
+                        <option value="Wysoki">Wysoki</option>
+                    </select>
+                </div>
+                <button type="submit" class="submit-btn">Zapisz</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container"></div>
+
+    <script src="storage.js"></script>
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW register success', reg))
+                    .catch(err => console.log('SW register fail', err));
+            });
+        }
+    </script>
+</body>
+
+</html>
