@@ -354,11 +354,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Verify with API
         try {
+            let res;
             if (type === 'req') {
-                await API.updateRequirementStatus(item.id, newStatus);
+                res = await API.updateRequirementStatus(item.id, newStatus);
             } else {
-                await API.updateQuestionStatus(item.id, newStatus);
+                res = await API.updateQuestionStatus(item.id, newStatus);
             }
+
+            if (!res.ok) throw new Error("Status update failed");
         } catch (err) {
             console.error("Status update error", err);
             // Revert

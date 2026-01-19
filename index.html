@@ -20,15 +20,8 @@
     <!-- Header -->
     <header class="app-header">
         <h1>OAPP – Olefiny</h1>
+        <!-- Global Refresh could go here, but user asked for specific placement -->
     </header>
-
-    <!-- Navigation Tabs -->
-    <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="zapotrzebowania">Zapotrzebowania</button>
-        <button class="tab-btn" data-tab="pytania">Pytania</button>
-        <button class="tab-btn" data-tab="ustawienia">Ustawienia</button>
-        <div class="tab-indicator"></div>
-    </nav>
 
     <!-- Main Content -->
     <main id="main-content">
@@ -36,7 +29,10 @@
         <section id="zapotrzebowania" class="tab-content active">
             <div class="view-header">
                 <h2>Zapotrzebowania</h2>
-                <button class="add-btn" id="add-req-btn">+ Dodaj</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="manual-refresh-btn" id="refresh-req-btn">Odśwież</button>
+                    <button class="add-btn" id="add-req-btn">+</button>
+                </div>
             </div>
             <div class="kanban-board" id="req-board">
                 <div class="kanban-column" data-status="Nowe">
@@ -58,7 +54,10 @@
         <section id="pytania" class="tab-content">
             <div class="view-header">
                 <h2>Pytania</h2>
-                <button class="add-btn" id="add-q-btn">+ Dodaj</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="manual-refresh-btn" id="refresh-q-btn">Odśwież</button>
+                    <button class="add-btn" id="add-q-btn">+</button>
+                </div>
             </div>
             <div class="kanban-board" id="q-board">
                 <div class="kanban-column" data-status="Nowe">
@@ -145,6 +144,19 @@
 
     <!-- Toast Notification -->
     <div id="toast-container"></div>
+
+    <!-- Navigation Tabs (Bottom) -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="zapotrzebowania">
+            <span>📋</span> Zapotrzebowania
+        </button>
+        <button class="tab-btn" data-tab="pytania">
+            <span>❓</span> Pytania
+        </button>
+        <button class="tab-btn" data-tab="ustawienia">
+            <span>⚙️</span> Ustawienia
+        </button>
+    </nav>
 
     <script src="storage.js"></script>
     <script src="api.js"></script>
