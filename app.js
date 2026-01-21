@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
             if (activeTab === 'zapotrzebowania') syncRequirements();
             if (activeTab === 'pytania') syncQuestions();
-        }, 120000);
+        }, 86400000);
     }
 
     // --- Tabs ---
