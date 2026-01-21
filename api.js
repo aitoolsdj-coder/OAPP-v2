@@ -15,6 +15,7 @@ const API = {
         try {
             const response = await fetch(url, {
                 ...options,
+                cache: 'no-store',
                 signal: controller.signal
             });
             clearTimeout(id);
@@ -25,11 +26,11 @@ const API = {
 
             const data = await response.json();
             if (data.ok !== true && data.ok !== "true") { // strict check? sometimes n8n returns "true" string
-                 // Only throw if we explicitly expect {ok:true} structure, 
-                 // but for lists we expect {ok: true, items: []}
-                 if (data.items === undefined && data.id === undefined) {
-                     // heuristic: if no items and no id, might be error or generic response
-                 }
+                // Only throw if we explicitly expect {ok:true} structure, 
+                // but for lists we expect {ok: true, items: []}
+                if (data.items === undefined && data.id === undefined) {
+                    // heuristic: if no items and no id, might be error or generic response
+                }
             }
             return data;
         } catch (error) {

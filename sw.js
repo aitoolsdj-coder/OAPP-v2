@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oapp-v1';
+const CACHE_NAME = 'oapp-v2';
 const ASSETS_TO_CACHE = [
     './index.html',
     './style.css',
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {

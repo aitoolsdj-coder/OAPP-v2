@@ -1,5 +1,6 @@
 console.log('APP.JS LOADED v2026-01--REFRESH');
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('[APP] app.js loaded', new Date().toISOString());
     // --- State & Constants ---
     const STATUSES = ['Nowe', 'W toku', 'Zrealizowane'];
     let currentDragItem = null;
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     init();
 
     function init() {
+        console.log('[APP] init');
         setupTabs();
         setupModals();
         setupForms();
@@ -54,11 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeTab === 'zapotrzebowania') syncRequirements();
             if (activeTab === 'pytania') syncQuestions();
         }, 120000);
-
-        const refreshReqBtn = document.getElementById('refresh-req-btn');
-        console.log('refresh-req-btn exists?', !!refreshReqBtn);
-        refreshReqBtn?.addEventListener('click', () => console.log('REFRESH REQ CLICK'));
-
     }
 
     // --- Tabs ---
@@ -80,21 +77,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function bindRefreshButtons() {
         const refreshReqBtn = document.getElementById('refresh-req-btn');
+        const refreshQBtn = document.getElementById('refresh-q-btn');
+
+        console.log('[APP] bindRefreshButtons', { hasReq: !!refreshReqBtn, hasQ: !!refreshQBtn });
+
         if (refreshReqBtn) {
             refreshReqBtn.addEventListener('click', () => {
+                console.log('[UI] refresh-req click');
                 if (!navigator.onLine) return showToast('Brak sieci', 'error');
                 showToast('Odświeżanie...', 'info');
                 syncRequirements();
             });
+        } else {
+            console.warn('[UI] refresh-req-btn not found');
         }
 
-        const refreshQBtn = document.getElementById('refresh-q-btn');
         if (refreshQBtn) {
             refreshQBtn.addEventListener('click', () => {
+                console.log('[UI] refresh-q click');
                 if (!navigator.onLine) return showToast('Brak sieci', 'error');
                 showToast('Odświeżanie...', 'info');
                 syncQuestions();
             });
+        } else {
+            console.warn('[UI] refresh-q-btn not found');
         }
     }
 
