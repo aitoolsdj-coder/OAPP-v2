@@ -1,3 +1,4 @@
+console.log('APP.JS LOADED v2026-01--REFRESH');
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Constants ---
     const STATUSES = ['Nowe', 'W toku', 'Zrealizowane'];
@@ -33,9 +34,31 @@ document.addEventListener('DOMContentLoaded', () => {
         setupModals();
         setupForms();
         setupSettings();
+        setupGlobalEvents();
+
+        bindRefreshButtons();
+        setupConnectivity();
+
+        // szybki render z cache
         renderRequirements();
         renderQuestions();
-        setupGlobalEvents(); // For drag & drop delegation
+
+        // startowy sync (backend -> cache)
+        syncRequirements();
+        syncQuestions();
+
+        // auto-refresh aktywnej zakładki co 120s
+        setInterval(() => {
+            if (!navigator.onLine) return;
+            const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+            if (activeTab === 'zapotrzebowania') syncRequirements();
+            if (activeTab === 'pytania') syncQuestions();
+        }, 120000);
+
+        const refreshReqBtn = document.getElementById('refresh-req-btn');
+        console.log('refresh-req-btn exists?', !!refreshReqBtn);
+        refreshReqBtn?.addEventListener('click', () => console.log('REFRESH REQ CLICK'));
+
     }
 
     // --- Tabs ---
@@ -47,8 +70,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab).classList.add('active');
+
+                if (navigator.onLine) {
+                    if (tab.dataset.tab === 'zapotrzebowania') syncRequirements();
+                    if (tab.dataset.tab === 'pytania') syncQuestions();
+                }
             });
         });
+    }
+    function bindRefreshButtons() {
+        const refreshReqBtn = document.getElementById('refresh-req-btn');
+        if (refreshReqBtn) {
+            refreshReqBtn.addEventListener('click', () => {
+                if (!navigator.onLine) return showToast('Brak sieci', 'error');
+                showToast('Odświeżanie...', 'info');
+                syncRequirements();
+            });
+        }
+
+        const refreshQBtn = document.getElementById('refresh-q-btn');
+        if (refreshQBtn) {
+            refreshQBtn.addEventListener('click', () => {
+                if (!navigator.onLine) return showToast('Brak sieci', 'error');
+                showToast('Odświeżanie...', 'info');
+                syncQuestions();
+            });
+        }
+    }
+
+    function setupConnectivity() {
+        window.addEventListener('online', () => {
+            showToast('Odzyskano połączenie', 'info');
+            syncRequirements();
+            syncQuestions();
+        });
+        window.addEventListener('offline', () => {
+            showToast('Brak połączenia z siecią', 'error');
+        });
+    }
+
+    async function syncRequirements() {
+        if (!navigator.onLine) return;
+
+        try {
+            // UWAGA: ta funkcja musi istnieć w api.js (API.listRequirements)
+            const data = await API.listRequirements();
+            if (!data?.ok || !Array.isArray(data.items)) throw new Error('Bad LIST response');
+
+            const items = data.items
+                .filter(i => (i.co ?? '').trim().length > 0)
+                .map(i => ({
+                    ...i,
+                    autor: i.autor ?? i['autor (opcjonalnie)'] ?? '',
+                    uwagi: i.uwagi ?? i['uwagi (opcjonalnie)'] ?? '',
+                    status: (i.status && i.status.trim()) ? i.status : 'Nowe',
+                    syncError: false,
+                }));
+
+            Storage.saveRequirements(items);
+            renderRequirements();
+            showToast('Odświeżono', 'success');
+        } catch (e) {
+            console.error('syncRequirements error', e);
+            showToast('Błąd synchronizacji', 'error');
+        }
+    }
+
+    async function syncQuestions() {
+        if (!navigator.onLine) return;
+
+        try {
+            const data = await API.listQuestions();
+            if (!data?.ok || !Array.isArray(data.items)) throw new Error('Bad LIST response');
+
+            const normalizeStatus = (s) => {
+                const v = (s ?? '').trim().toLowerCase();
+                if (v === 'w toku') return 'W toku';
+                if (v === 'zrealizowane') return 'Zrealizowane';
+                return 'Nowe';
+            };
+
+            const items = data.items
+                .filter(i => (i.opis ?? '').trim().length > 0)
+                .map(i => ({
+                    ...i,
+                    status: normalizeStatus(i.status),
+                    syncError: false,
+                }));
+
+            Storage.saveQuestions(items);
+            renderQuestions();
+            showToast('Odświeżono', 'success');
+        } catch (e) {
+            console.error('syncQuestions error', e);
+            showToast('Błąd synchronizacji', 'error');
+        }
     }
 
     // --- Modals ---
@@ -88,10 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newItem = {
                 id: 'local-' + Date.now(),
-                co,
-                ilosc,
-                producent,
-                uwagi,
+                co: co,
+                ilosc: ilosc,
+                producent: producent,
+                uwagi: uwagi,
                 autor: settings.author,
                 status: 'Nowe',
                 createdAt: Date.now(),
@@ -108,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // API Sync
             try {
                 const response = await API.addRequirement({
-                    co, ilosc, producent, autor: settings.author, uwagi
+                    co: co, ilosc: ilosc, producent: producent, autor: settings.author, uwagi: uwagi
                 });
 
                 // Update ID from server if available
@@ -143,9 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newItem = {
                 id: 'local-' + Date.now(),
-                opis,
+                opis: opis,
                 termin_odpowiedzi: termin,
-                priorytet,
+                priorytet: priorytet,
                 autor: settings.author,
                 status: 'Nowe',
                 createdAt: Date.now(),
@@ -160,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const response = await API.addQuestion({
-                    opis, termin_odpowiedzi: termin, priorytet, autor: settings.author
+                    opis: opis, termin_odpowiedzi: termin, priorytet: priorytet, autor: settings.author
                 });
                 // Similar ID update logic
                 if (response.id) {
@@ -209,7 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         items.forEach(item => {
             const card = createCard('req', item);
-            const listId = `req-list-${item.status.toLowerCase().replace(' ', '-')}`;
+            const status = STATUSES.includes(item.status) ? item.status : 'Nowe';
+            const listId = `req-list-${status.toLowerCase().replace(' ', '-')}`;
             const list = document.getElementById(listId);
             if (list) list.appendChild(card);
         });
@@ -223,7 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         items.forEach(item => {
             const card = createCard('q', item);
-            const listId = `q-list-${item.status.toLowerCase().replace(' ', '-')}`;
+            const status = STATUSES.includes(item.status) ? item.status : 'Nowe';
+            const listId = `q-list-${status.toLowerCase().replace(' ', '-')}`;
             const list = document.getElementById(listId);
             if (list) list.appendChild(card);
         });
@@ -329,6 +447,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Actions ---
     async function changeStatus(type, id, newStatus) {
         // Optimistic Update
+        if (String(id).startsWith('local-')) {
+            showToast('Ten wpis nie jest jeszcze zsynchronizowany. Kliknij Odśwież i spróbuj ponownie.', 'error');
+            return;
+        }
         let item, items;
         if (type === 'req') {
             items = Storage.getRequirements();
@@ -354,11 +476,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Verify with API
         try {
+            let res;
             if (type === 'req') {
-                await API.updateRequirementStatus(item.id, newStatus);
+                res = await API.updateRequirementStatus(item.id, newStatus);
             } else {
-                await API.updateQuestionStatus(item.id, newStatus);
+                res = await API.updateQuestionStatus(item.id, newStatus);
             }
+
+            if (!res.ok) throw new Error("Status update failed");
         } catch (err) {
             console.error("Status update error", err);
             // Revert
