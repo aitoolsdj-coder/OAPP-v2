@@ -5,7 +5,7 @@ const API = {
         REQ_LIST: 'https://jakubdworak.app.n8n.cloud/webhook/oapp/zapotrzebowania/list',
         Q_ADD: 'https://jakubdworak.app.n8n.cloud/webhook/oapp/pytania/add',
         Q_STATUS: 'https://jakubdworak.app.n8n.cloud/webhook/oapp/pytania/status',
-        Q_LIST: 'https://jakubdworak.app.n8n.cloud/webhook/oapp/pytania/list'
+        Q_LIST: 'https://jakubdworak.app.n8n.cloud/webhook-test/oapp/pytania/list'
     },
 
     async _fetch(url, options = {}) {

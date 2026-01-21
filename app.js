@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .map(i => ({
                     ...i,
                     status: normalizeStatus(i.status),
+                    odpowiedz: i.odpowiedz ?? i['odpowiedz (opcjonalnie)'] ?? '',
                     syncError: false,
                 }));
 
@@ -365,58 +366,113 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.syncError) {
             const badge = document.createElement('div');
             badge.className = 'error-badge';
-            badge.innerText = 'Błąd synchro';
+            badge.innerText = '!';
             div.appendChild(badge);
         }
 
-        const title = document.createElement('div');
-        title.className = 'card-title';
-        title.innerText = type === 'req' ? item.co : shortenText(item.opis);
-        div.appendChild(title);
+        if (type === 'q') {
+            // New Compact Header Layout for Questions
+            const headerRow = document.createElement('div');
+            headerRow.className = 'card-header-row';
 
-        const details = document.createElement('div');
-        details.className = 'card-details';
-        if (type === 'req') {
+            const leftSide = document.createElement('div');
+            leftSide.className = 'card-header-left';
+
+            const title = document.createElement('span');
+            title.className = 'card-title compact-title';
+            title.innerText = shortenText(item.opis);
+
+            const priorityBadge = document.createElement('span');
+            priorityBadge.className = `priority-badge priority-${(item.priorytet || 'Sredni').toLowerCase()}`;
+            priorityBadge.innerText = item.priorytet || 'Średni';
+
+            leftSide.appendChild(title);
+            leftSide.appendChild(priorityBadge);
+
+            const actionsRight = document.createElement('div');
+            actionsRight.className = 'card-header-actions';
+
+            // Add 'Next State' buttons depending on current state
+            if (item.status === 'Nowe') {
+                actionsRight.appendChild(createCompactMoveBtn('W toku', type, item.id));
+            } else if (item.status === 'W toku') {
+                actionsRight.appendChild(createCompactMoveBtn('Zrealizowane', type, item.id, true)); // true = isForward? or just icon
+                actionsRight.appendChild(createCompactMoveBtn('Nowe', type, item.id));
+            } else if (item.status === 'Zrealizowane') {
+                actionsRight.appendChild(createCompactMoveBtn('W toku', type, item.id));
+            }
+
+            headerRow.appendChild(leftSide);
+            headerRow.appendChild(actionsRight);
+            div.appendChild(headerRow);
+
+            // Details
+            const details = document.createElement('div');
+            details.className = 'card-details compact-details';
+            let answerHtml = '';
+            if (item.odpowiedz) {
+                answerHtml = `<span class="answer-row"><strong>Odpowiedź:</strong> ${item.odpowiedz}</span>`;
+            } else {
+                answerHtml = `<span class="answer-row"><strong>Odpowiedź:</strong> -</span>`;
+            }
+
+            details.innerHTML = `
+                <span><strong>Termin:</strong> ${item.termin_odpowiedzi || '-'}</span>
+                <span><strong>Autor:</strong> ${item.autor}</span>
+                ${answerHtml}
+            `;
+            div.appendChild(details);
+
+        } else {
+            // Original Layout for Requirements
+            const title = document.createElement('div');
+            title.className = 'card-title';
+            title.innerText = item.co;
+            div.appendChild(title);
+
+            const details = document.createElement('div');
+            details.className = 'card-details';
             details.innerHTML = `
                 <span>Ilość: ${item.ilosc}</span>
                 <span>Autor: ${item.autor}</span>
                 ${item.producent ? `<span>Prod: ${item.producent}</span>` : ''}
             `;
-        } else {
-            details.innerHTML = `
-                <span>Priorytet: ${item.priorytet}</span>
-                <span>Termin: ${item.termin_odpowiedzi || '-'}</span>
-                <span>Autor: ${item.autor}</span>
-            `;
+            div.appendChild(details);
+
+            const actions = document.createElement('div');
+            actions.className = 'card-actions';
+
+            if (item.status === 'Nowe') {
+                actions.appendChild(createMoveBtn('W toku', type, item.id));
+            } else if (item.status === 'W toku') {
+                actions.appendChild(createMoveBtn('Zrealizowane', type, item.id));
+                actions.appendChild(createMoveBtn('Nowe', type, item.id));
+            } else if (item.status === 'Zrealizowane') {
+                actions.appendChild(createMoveBtn('W toku', type, item.id));
+            }
+            div.appendChild(actions);
         }
-        div.appendChild(details);
 
-        // Actions (Quick Move buttons for mobile friendliness)
-        const actions = document.createElement('div');
-        actions.className = 'card-actions';
-
+        // Retry Action (if error) - append at end or manage separately?
+        // Current logic had retry button in actions.
+        // For compact layout, maybe put retry in actionsRight as well?
+        // Let's stick to simple append for now to not overcomplicate, 
+        // but for 'q' layout, retry should go into actionsRight if possible.
         if (item.syncError) {
             const retryBtn = document.createElement('button');
-            retryBtn.className = 'action-btn';
-            retryBtn.innerText = 'Ponów';
+            retryBtn.className = 'action-btn retry-btn-small';
+            retryBtn.innerText = '↺';
             retryBtn.onclick = (e) => {
-                e.stopPropagation(); // Prevent drag start
+                e.stopPropagation();
                 retrySync(type, item);
             };
-            actions.appendChild(retryBtn);
+            // If q, append to header actions, else legacy actions
+            if (type === 'q') {
+                div.querySelector('.card-header-actions').appendChild(retryBtn);
+            } else {
+                div.querySelector('.card-actions').appendChild(retryBtn);
+            }
         }
-
-        // Add 'Next State' buttons depending on current state
-        if (item.status === 'Nowe') {
-            actions.appendChild(createMoveBtn('W toku', type, item.id));
-        } else if (item.status === 'W toku') {
-            actions.appendChild(createMoveBtn('Zrealizowane', type, item.id));
-            actions.appendChild(createMoveBtn('Nowe', type, item.id)); // Backwards
-        } else if (item.status === 'Zrealizowane') {
-            actions.appendChild(createMoveBtn('W toku', type, item.id)); // Backwards
-        }
-
-        div.appendChild(actions);
 
         // Drag Events
         div.addEventListener('dragstart', (e) => {
@@ -433,6 +489,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return div;
+    }
+
+    function createCompactMoveBtn(targetStatus, type, id) {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn compact-action-btn';
+        // Icon mapping or short text
+        let icon = '→';
+        if (targetStatus === 'Zrealizowane') icon = '✓';
+        if (targetStatus === 'W toku') icon = '▶';
+        if (targetStatus === 'Nowe') icon = '↺';
+
+        // For right-aligned buttons, maybe text is too long.
+        // User asked for "→ Zrealizowane" etc, but "Compact".
+        // Let's try short text.
+        // "→ Zrealizowane" takes a lot of space.
+        // Let's use abbreviations or just icons if flexible, but prompt says "Klikalne na telefonie".
+        // I'll stick to text but smaller padding defined in CSS.
+        btn.innerText = `→ ${targetStatus}`;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            changeStatus(type, id, targetStatus);
+        };
+        return btn;
     }
 
     function createMoveBtn(targetStatus, type, id) {
